@@ -48,6 +48,10 @@ def receive_imu_data():
         
         data = request.get_json()
         print(f"Received data: {data}")
+
+        with open('data.json', 'a') as f:
+            json.dump(data, f)
+            f.write('\n')
         
         # Validate required fields
         required_fields = ['timestamp', 'accelerometer', 'gyroscope']
