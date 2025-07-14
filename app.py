@@ -16,7 +16,11 @@ logging.basicConfig(
 app = Flask(__name__)
 
 # In-memory buffer to store IMU data
-imu_data_buffer = []
+accelerometer_data_buffer = []
+gyroscope_data_buffer = []
+gravity_data_buffer = []
+total_acceleration_data_buffer = []
+orientation_data_buffer = []
 MAX_BUFFER_SIZE = 1000
 
 @app.route('/health', methods=['GET'])
@@ -25,7 +29,7 @@ def health_check():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'buffer_size': len(imu_data_buffer)
+        'buffer_size': get_current_buffer_size()
     })
 
 @app.route('/data', methods=['POST'])
@@ -34,11 +38,10 @@ def receive_imu_data():
     Receive IMU data from mobile devices
     Expected JSON format:
     {
-        "timestamp": "ISO timestamp",
-        "accelerometer": {"x": float, "y": float, "z": float},
-        "gyroscope": {"x": float, "y": float, "z": float},
-        "magnetometer": {"x": float, "y": float, "z": float},
-        "device_id": "string"
+        "messageId": number,
+        "sessionId": string (UUID),
+        "deviceId": string (UUID),
+        "payload": array of sensor readings
     }
     """
     try:
@@ -47,44 +50,34 @@ def receive_imu_data():
             return jsonify({'error': 'Content-Type must be application/json'}), 400
         
         data = request.get_json()
-        print(f"Received data: {data}")
 
-        with open('data.json', 'a') as f:
-            json.dump(data, f)
-            f.write('\n')
+        # Get payload
+        payload = data.get('payload', [])
+
+        if not isinstance(payload, list) or not payload:
+            return jsonify({'error': 'Payload must be a non-empty array'}), 400
         
-        # Validate required fields
-        required_fields = ['timestamp', 'accelerometer', 'gyroscope']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-        
-        # Validate accelerometer data
-        accel = data.get('accelerometer', {})
-        if not all(key in accel for key in ['x', 'y', 'z']):
-            return jsonify({'error': 'Accelerometer data must contain x, y, z values'}), 400
-        
-        # Validate gyroscope data
-        gyro = data.get('gyroscope', {})
-        if not all(key in gyro for key in ['x', 'y', 'z']):
-            return jsonify({'error': 'Gyroscope data must contain x, y, z values'}), 400
-        
-        # Add server timestamp
-        data['server_timestamp'] = datetime.now().isoformat()
-        
-        # Add to buffer
-        imu_data_buffer.append(data)
-        
-        # Maintain buffer size
-        if len(imu_data_buffer) > MAX_BUFFER_SIZE:
-            imu_data_buffer.pop(0)
-        
+        # Process each sensor reading in the payload
+        for reading in payload:
+            if not isinstance(reading, dict):
+                return jsonify({'error': 'Each reading must be a JSON object'}), 400
+            
+            # Validate required fields in each reading
+            if 'name' not in reading or 'values' not in reading:
+                return jsonify({'error': 'Each reading must contain name and values'}), 400
+
+            # Validate the structure of the sensor reading
+            try:
+                process_sensor_reading(reading)
+            except ValueError as ve:
+                return jsonify({'error': str(ve)}), 400
+
         logging.info(f"Received IMU data from device: {data.get('device_id', 'unknown')}")
         
         return jsonify({
             'status': 'success',
             'message': 'IMU data received successfully',
-            'buffer_size': len(imu_data_buffer)
+            'buffer_size': get_current_buffer_size(),
         }), 200
         
     except json.JSONDecodeError:
@@ -93,6 +86,62 @@ def receive_imu_data():
         logging.error(f"Error processing IMU data: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+
+def process_sensor_reading(reading):
+    """Process a single sensor reading and add it to the appropriate buffer"""
+    name = reading['name']
+    values = reading['values']
+    
+    # Add reading to the appropriate buffer based on the sensor name
+    if name == 'accelerometer':
+        validate_sensor_values(values, name)
+        add_to_buffer(values, accelerometer_data_buffer)
+    elif name == 'gyroscope':
+        validate_sensor_values(values, name)
+        add_to_buffer(values, gyroscope_data_buffer)
+    elif name == 'gravity':
+        validate_sensor_values(values, name)
+        add_to_buffer(values, gravity_data_buffer)
+    elif name == 'total_acceleration':
+        validate_sensor_values(values, name)
+        add_to_buffer(values, total_acceleration_data_buffer)
+    elif name == 'orientation':
+        validate_sensor_values(values, name)
+        add_to_buffer(values, orientation_data_buffer)
+    else:
+        logging.warning(f"Unknown sensor type: {name}")
+
+def validate_sensor_values(values, name):
+    """ Validate the structure of sensor values """
+    if not isinstance(values, dict):
+        raise ValueError("Values must be a JSON object")
+    
+    # Check for required fields in values
+    required_fields = ['x', 'y', 'z']
+
+    if name == 'orientation':
+        required_fields = ['qx', 'qy', 'qz', 'qw', 'roll', 'pitch', 'yaw']
+
+    for field in required_fields:
+        if field not in values:
+            raise ValueError(f"Missing required field: {field}")
+    
+    # Ensure all values are numbers
+    for field in values:
+        if not isinstance(values[field], (int, float)):
+            raise ValueError(f"Field '{field}' must be a number")
+
+def add_to_buffer(data, buffer):
+    """Add data to the buffer and maintain its size"""
+    buffer.append(data)
+    if len(buffer) > MAX_BUFFER_SIZE:
+        buffer.pop(0)  # Remove oldest data if buffer exceeds max size
+
+def get_current_buffer_size():
+    """Get the total size of all buffers"""
+    return (len(accelerometer_data_buffer) + len(gyroscope_data_buffer) +
+            len(gravity_data_buffer) + len(total_acceleration_data_buffer) +
+            len(orientation_data_buffer))
 
 @app.errorhandler(404)
 def not_found(error):
