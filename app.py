@@ -72,7 +72,7 @@ def receive_imu_data():
             except ValueError as ve:
                 return jsonify({'error': str(ve)}), 400
 
-        logging.info(f"Received IMU data from device: {data.get('device_id', 'unknown')}")
+        logging.info(f"Received IMU data from device: {data.get('deviceId', 'unknown')}")
         
         return jsonify({
             'status': 'success',
@@ -102,14 +102,14 @@ def process_sensor_reading(reading):
     elif name == 'gravity':
         validate_sensor_values(values, name)
         add_to_buffer(values, gravity_data_buffer)
-    elif name == 'total_acceleration':
+    elif name == 'totalacceleration':
         validate_sensor_values(values, name)
         add_to_buffer(values, total_acceleration_data_buffer)
     elif name == 'orientation':
         validate_sensor_values(values, name)
         add_to_buffer(values, orientation_data_buffer)
     else:
-        logging.warning(f"Unknown sensor type: {name}")
+        return
 
 def validate_sensor_values(values, name):
     """ Validate the structure of sensor values """
