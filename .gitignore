@@ -1,1 +1,7 @@
 .venv
+
+# Server log
+imu_server.log
+
+# Pycache files
+__pycache__/

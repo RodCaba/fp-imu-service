@@ -4,6 +4,16 @@
         "port": 8000,
         "debug": false
     },
+    "mqtt": {
+        "broker_host": "0.0.0.0",
+        "broker_port": 1883,
+        "topics": {
+            "recording_control": "imu/recording/control",
+            "data_stream": "imu/data/stream",
+            "status": "imu/status"
+        },
+        "client_id": "imu_server"
+    },
     "data": {
         "max_buffer_size": 1000,
         "log_file": "imu_server.log"

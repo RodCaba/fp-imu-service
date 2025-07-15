@@ -1,7 +1,12 @@
-from flask import Flask, request, jsonify
 import json
 import logging
 from datetime import datetime
+import paho.mqtt.client as mqtt
+import threading
+import time
+import signal
+import sys
+from enum import Enum
 
 # Configure logging
 logging.basicConfig(
@@ -13,7 +18,20 @@ logging.basicConfig(
     ]
 )
 
-app = Flask(__name__)
+# Load configuration
+with open('config.json', 'r') as f:
+    config = json.load(f)
+
+# Recording states
+class RecordingState(Enum):
+    IDLE = "idle"
+    RECORDING = "recording"
+    PAUSED = "paused"
+
+# Global state
+current_recording_state = RecordingState.IDLE
+active_recording_sessions = set()  # Track active recording sessions
+service_running = True
 
 # In-memory buffer to store IMU data
 accelerometer_data_buffer = []
@@ -21,71 +39,92 @@ gyroscope_data_buffer = []
 gravity_data_buffer = []
 total_acceleration_data_buffer = []
 orientation_data_buffer = []
-MAX_BUFFER_SIZE = 1000
+MAX_BUFFER_SIZE = config['data']['max_buffer_size']
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.now().isoformat(),
-        'buffer_size': get_current_buffer_size()
-    })
+# MQTT Configuration
+MQTT_TOPICS = config['mqtt']['topics']
+mqtt_client = None
 
-@app.route('/data', methods=['POST'])
-def receive_imu_data():
-    """
-    Receive IMU data from mobile devices
-    Expected JSON format:
-    {
-        "messageId": number,
-        "sessionId": string (UUID),
-        "deviceId": string (UUID),
-        "payload": array of sensor readings
-    }
-    """
-    try:
-        # Check if request contains JSON data
-        if not request.is_json:
-            return jsonify({'error': 'Content-Type must be application/json'}), 400
+# MQTT Event Handlers
+def on_connect(client, userdata, flags, rc):
+    """Callback for when the MQTT client connects to the broker"""
+    if rc == 0:
+        logging.info("Connected to MQTT broker successfully")
         
-        data = request.get_json()
+        # Subscribe to all relevant topics
+        client.subscribe(MQTT_TOPICS['recording_control'])
+        client.subscribe(MQTT_TOPICS['data_stream'])
+        client.subscribe(MQTT_TOPICS['status'])
+        
+        # Publish initial status
+        publish_status_update()
+        
+    else:
+        logging.error(f"Failed to connect to MQTT broker with code {rc}")
 
-        # Get payload
-        payload = data.get('payload', [])
+def on_message(client, userdata, msg):
+    """Callback for when a message is received on a subscribed topic"""
+    try:
+        topic = msg.topic
+        payload = json.loads(msg.payload.decode())
+        
+        logging.info(f"Received MQTT message on topic {topic}")
+        
 
-        if not isinstance(payload, list) or not payload:
-            return jsonify({'error': 'Payload must be a non-empty array'}), 400
+        if topic == MQTT_TOPICS['data_stream']:
+            handle_imu_data_message(payload)
+            pass
+            
+    except json.JSONDecodeError:
+        logging.error(f"Invalid JSON in MQTT message: {msg.payload}")
+    except Exception as e:
+        logging.error(f"Error processing MQTT message: {str(e)}")
+
+def on_disconnect(client, userdata, rc):
+    """Callback for when the MQTT client disconnects"""
+    if rc != 0:
+        logging.warning(f"Unexpected MQTT disconnection with code {rc}")
+    else:
+        logging.info("Disconnected from MQTT broker")
+
+def handle_imu_data_message(payload):
+    """Handle incoming IMU data via MQTT"""
+    try:
+        # Validate message structure
+        device_id = payload.get('deviceId')
+        imu_payload = payload.get('payload', [])
+        
+        if not device_id:
+            logging.error("IMU data message missing 'deviceId' field")
+            return
+            
+        if not isinstance(imu_payload, list) or not imu_payload:
+            logging.error("IMU data payload must be a non-empty array")
+            return
         
         # Process each sensor reading in the payload
-        for reading in payload:
+        for reading in imu_payload:
             if not isinstance(reading, dict):
-                return jsonify({'error': 'Each reading must be a JSON object'}), 400
+                logging.error("Each reading must be a JSON object")
+                continue
             
             # Validate required fields in each reading
             if 'name' not in reading or 'values' not in reading:
-                return jsonify({'error': 'Each reading must contain name and values'}), 400
+                logging.error("Each reading must contain name and values")
+                continue
 
-            # Validate the structure of the sensor reading
+            # Validate and process the sensor reading
             try:
                 process_sensor_reading(reading)
             except ValueError as ve:
-                return jsonify({'error': str(ve)}), 400
+                logging.error(f"Invalid sensor reading: {str(ve)}")
+                continue
 
-        logging.info(f"Received IMU data from device: {data.get('deviceId', 'unknown')}")
+
+        logging.info(f"Processed IMU data from device: {device_id} (messages: {len(imu_payload)})")
         
-        return jsonify({
-            'status': 'success',
-            'message': 'IMU data received successfully',
-            'buffer_size': get_current_buffer_size(),
-        }), 200
-        
-    except json.JSONDecodeError:
-        return jsonify({'error': 'Invalid JSON format'}), 400
     except Exception as e:
-        logging.error(f"Error processing IMU data: {str(e)}")
-        return jsonify({'error': 'Internal server error'}), 500
-
+        logging.error(f"Error handling IMU data message: {str(e)}")
 
 def process_sensor_reading(reading):
     """Process a single sensor reading and add it to the appropriate buffer"""
@@ -109,10 +148,10 @@ def process_sensor_reading(reading):
         validate_sensor_values(values, name)
         add_to_buffer(values, orientation_data_buffer)
     else:
-        return
+        logging.warning(f"Unknown sensor type: {name}")
 
 def validate_sensor_values(values, name):
-    """ Validate the structure of sensor values """
+    """Validate the structure of sensor values"""
     if not isinstance(values, dict):
         raise ValueError("Values must be a JSON object")
     
@@ -143,18 +182,123 @@ def get_current_buffer_size():
             len(gravity_data_buffer) + len(total_acceleration_data_buffer) +
             len(orientation_data_buffer))
 
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Endpoint not found'}), 404
+def publish_recording_command(command):
+    """Publish recording command to devices"""
+    if mqtt_client and mqtt_client.is_connected():
+        try:
+            result = mqtt_client.publish(
+                MQTT_TOPICS['recording_control'], 
+                json.dumps(command),
+                qos=1
+            )
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                logging.info(f"Published recording command: {command['command']}")
+            else:
+                logging.error(f"Failed to publish recording command: {result.rc}")
+        except Exception as e:
+            logging.error(f"Error publishing recording command: {str(e)}")
 
-@app.errorhandler(405)
-def method_not_allowed(error):
-    return jsonify({'error': 'Method not allowed'}), 405
+def publish_status_update():
+    """Publish current server status"""
+    if mqtt_client and mqtt_client.is_connected():
+        try:
+            status = {
+                'recording_state': current_recording_state.value,
+                'active_sessions': list(active_recording_sessions),
+                'buffer_size': get_current_buffer_size(),
+                'timestamp': datetime.now().isoformat(),
+                'service': 'imu-mqtt-service',
+                'mqtt_status': 'connected',
+                'uptime_seconds': time.time() - start_time,
+            }
+            result = mqtt_client.publish(
+                MQTT_TOPICS['status'], 
+                json.dumps(status),
+                qos=0
+            )
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                logging.debug(f"Published status update")
+        except Exception as e:
+            logging.error(f"Error publishing status update: {str(e)}")
+
+def init_mqtt_client():
+    """Initialize and start MQTT client"""
+    global mqtt_client
+    
+    mqtt_client = mqtt.Client(config['mqtt']['client_id'])
+    mqtt_client.on_connect = on_connect
+    mqtt_client.on_message = on_message
+    mqtt_client.on_disconnect = on_disconnect
+    
+    try:
+        mqtt_client.connect(
+            config['mqtt']['broker_host'], 
+            config['mqtt']['broker_port'], 
+            60
+        )
+        # Start the MQTT loop in a separate thread
+        mqtt_client.loop_start()
+        logging.info("MQTT client initialized and connected")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to initialize MQTT client: {str(e)}")
+        return False
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    global service_running
+    logging.info(f"Received signal {signum}. Shutting down...")
+    service_running = False
+    
+    # Publish service shutdown announcement
+    if mqtt_client and mqtt_client.is_connected():
+        shutdown_announcement = {
+            'service': 'imu-mqtt-service',
+            'status': 'offline',
+            'timestamp': datetime.now().isoformat(),
+            'reason': 'shutdown'
+        }
+        mqtt_client.publish("imu/service/announce", json.dumps(shutdown_announcement), qos=1)
+        time.sleep(1)  # Give time for message to be sent
+        mqtt_client.loop_stop()
+        mqtt_client.disconnect()
+    
+    sys.exit(0)
+
+def status_update_thread():
+    """Background thread to periodically publish status updates"""
+    while service_running:
+        try:
+            publish_status_update()
+            time.sleep(30)
+        except Exception as e:
+            logging.error(f"Error in status update thread: {str(e)}")
+
+def main():
+    """Main service function"""
+    global start_time, service_running
+    
+    start_time = time.time()
+    
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    # Initialize MQTT client
+    if not init_mqtt_client():
+        logging.error("Failed to initialize MQTT client. Exiting.")
+        sys.exit(1)
+    
+    # Start background status update thread
+    status_thread = threading.Thread(target=status_update_thread, daemon=True)
+    status_thread.start()
+    
+    try:
+        # Keep the service running
+        while service_running:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        signal_handler(signal.SIGINT, None)
 
 if __name__ == '__main__':
-    app.run(
-        host='0.0.0.0',  # Listen on all interfaces
-        port=8000,
-        debug=False, 
-        threaded=True  # Handle multiple requests concurrently
-    )
+    main()
