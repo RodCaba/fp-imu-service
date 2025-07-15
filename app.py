@@ -39,6 +39,10 @@ def main():
         logging.error("Failed to initialize MQTT broker. Exiting.")
         sys.exit(1)
 
+    network_ip = mqtt_broker.get_ip_address()
+    logging.info(f"Service running on IP: {network_ip}")
+    logging.info("MQTT broker accessible at: %s:%d", network_ip, config['mqtt']['broker_port'])
+
     signal.signal(signal.SIGINT, mqtt_broker.signal_handler)
     signal.signal(signal.SIGTERM, mqtt_broker.signal_handler)
     

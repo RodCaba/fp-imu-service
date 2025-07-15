@@ -2,9 +2,10 @@ import paho.mqtt.client as mqtt
 import json
 import logging
 import time
+import sys
+import socket
 from datetime import datetime
 from enum import Enum
-import sys
 
 from src.imu_buffer import IMUBuffer
 
@@ -167,3 +168,20 @@ class MQTTBroker:
             self.client.disconnect()
 
         sys.exit(0)
+
+  def get_ip_address(self):
+    """
+    Get the IP address of the device
+    """
+    try:
+        if 'network' in self.config and 'ip' in self.config['network']:
+            return self.config['network']['ip']
+        # Auto-detect if not in config
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception as e:
+        logging.error(f"Error getting IP address: {str(e)}")
+        return "localhost"
