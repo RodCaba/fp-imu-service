@@ -31,6 +31,39 @@ class TestMQTTBroker(unittest.TestCase):
         self.mock_mqtt_client.is_connected.return_value = True
         self.mock_mqtt_client.publish.return_value = True
         
+        # Set up patches for external modules
+        self.patcher_logging = patch('src.mqtt_broker.mqtt_broker.logging')
+        self.patcher_time = patch('src.mqtt_broker.mqtt_broker.time')
+        self.patcher_datetime = patch('src.mqtt_broker.mqtt_broker.datetime')
+        self.patcher_socket = patch('src.mqtt_broker.mqtt_broker.socket')
+        self.patcher_sys = patch('src.mqtt_broker.mqtt_broker.sys')
+        
+        # Start patches and store mock objects
+        self.mock_logging = self.patcher_logging.start()
+        self.mock_time = self.patcher_time.start()
+        self.mock_datetime = self.patcher_datetime.start()
+        self.mock_socket = self.patcher_socket.start()
+        self.mock_sys = self.patcher_sys.start()
+        
+        # Configure common mock behaviors
+        self.mock_time.time.return_value = 1000.0
+        self.mock_datetime.now.return_value.isoformat.return_value = "2023-01-01T12:00:00"
+        
+        # Configure socket mocks
+        self.mock_socket_instance = Mock()
+        self.mock_socket.socket.return_value = self.mock_socket_instance
+        self.mock_socket.AF_INET = 2
+        self.mock_socket.SOCK_DGRAM = 2
+        self.mock_socket_instance.getsockname.return_value = ("192.168.1.100", 12345)
+        
+    def tearDown(self):
+        """Clean up patches after each test method."""
+        self.patcher_logging.stop()
+        self.patcher_time.stop()
+        self.patcher_datetime.stop()
+        self.patcher_socket.stop()
+        self.patcher_sys.stop()
+        
     def create_broker(self, connect_success=True):
         """Create a MQTTBroker instance with mocked dependencies."""
         if not connect_success:
@@ -42,11 +75,8 @@ class TestMQTTBroker(unittest.TestCase):
             imu_buffer=self.mock_imu_buffer
         )
     
-    @patch('src.mqtt_broker.mqtt_broker.time')
-    def test_broker_initialization_success(self, mock_time):
+    def test_broker_initialization_success(self):
         """Test successful broker initialization."""
-        mock_time.time.return_value = 1000.0
-        
         broker = self.create_broker()
         
         # Verify initial state
@@ -63,12 +93,8 @@ class TestMQTTBroker(unittest.TestCase):
         self.mock_mqtt_client.connect.assert_called_once_with('localhost', 1883, 60)
         self.mock_mqtt_client.loop_start.assert_called_once()
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    @patch('src.mqtt_broker.mqtt_broker.time')
-    def test_broker_initialization_failure(self, mock_time, mock_logging):
+    def test_broker_initialization_failure(self):
         """Test broker initialization when connection fails."""
-        mock_time.time.return_value = 1000.0
-        
         broker = self.create_broker(connect_success=False)
         
         # Verify failure state
@@ -76,10 +102,9 @@ class TestMQTTBroker(unittest.TestCase):
         self.assertFalse(broker.service_running)
         
         # Verify error logging
-        mock_logging.error.assert_called_with("Failed to connect to MQTT broker: Connection failed")
+        self.mock_logging.error.assert_called_with("Failed to connect to MQTT broker: Connection failed")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_on_connect_success(self, mock_logging):
+    def test_on_connect_success(self):
         """Test successful MQTT connection callback."""
         broker = self.create_broker()
         
@@ -98,10 +123,9 @@ class TestMQTTBroker(unittest.TestCase):
         self.mock_mqtt_client.publish.assert_called()
         
         # Verify success logging
-        mock_logging.info.assert_called_with("Connected to MQTT broker successfully")
+        self.mock_logging.info.assert_called_with("Connected to MQTT broker successfully")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_on_connect_failure(self, mock_logging):
+    def test_on_connect_failure(self):
         """Test failed MQTT connection callback."""
         broker = self.create_broker()
         
@@ -112,10 +136,9 @@ class TestMQTTBroker(unittest.TestCase):
         self.mock_mqtt_client.subscribe.assert_not_called()
         
         # Verify error logging
-        mock_logging.error.assert_called_with("Failed to connect to MQTT broker with code 1")
+        self.mock_logging.error.assert_called_with("Failed to connect to MQTT broker with code 1")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_on_message_valid_imu_data(self, mock_logging):
+    def test_on_message_valid_imu_data(self):
         """Test handling valid IMU data message."""
         broker = self.create_broker()
         
@@ -132,11 +155,10 @@ class TestMQTTBroker(unittest.TestCase):
         broker.on_message(None, None, mock_msg)
         
         # Verify message processing
-        mock_logging.info.assert_any_call("Received MQTT message on topic test/data")
+        self.mock_logging.info.assert_any_call("Received MQTT message on topic test/data")
         self.mock_imu_buffer.process_sensor_reading.assert_called_once()
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_on_message_invalid_json(self, mock_logging):
+    def test_on_message_invalid_json(self):
         """Test handling message with invalid JSON."""
         broker = self.create_broker()
         
@@ -150,10 +172,9 @@ class TestMQTTBroker(unittest.TestCase):
         broker.on_message(None, None, mock_msg)
         
         # Verify error logging
-        mock_logging.error.assert_called_with("Invalid JSON in MQTT message: b'invalid json'")
+        self.mock_logging.error.assert_called_with("Invalid JSON in MQTT message: b'invalid json'")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_on_disconnect_unexpected(self, mock_logging):
+    def test_on_disconnect_unexpected(self):
         """Test unexpected disconnection callback."""
         broker = self.create_broker()
         
@@ -161,10 +182,9 @@ class TestMQTTBroker(unittest.TestCase):
         broker.on_disconnect(None, None, 1)
         
         # Verify warning logging
-        mock_logging.warning.assert_called_with("Unexpected MQTT disconnection with code 1")
+        self.mock_logging.warning.assert_called_with("Unexpected MQTT disconnection with code 1")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_on_disconnect_expected(self, mock_logging):
+    def test_on_disconnect_expected(self):
         """Test expected disconnection callback."""
         broker = self.create_broker()
         
@@ -172,15 +192,12 @@ class TestMQTTBroker(unittest.TestCase):
         broker.on_disconnect(None, None, 0)
         
         # Verify info logging
-        mock_logging.info.assert_called_with("Disconnected from MQTT broker")
+        self.mock_logging.info.assert_called_with("Disconnected from MQTT broker")
     
-    @patch('src.mqtt_broker.mqtt_broker.datetime')
-    @patch('src.mqtt_broker.mqtt_broker.time')
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_publish_status_update_success(self, mock_logging, mock_time, mock_datetime):
+    def test_publish_status_update_success(self):
         """Test successful status update publishing."""
-        mock_time.time.return_value = 2000.0
-        mock_datetime.now.return_value.isoformat.return_value = "2023-01-01T12:00:00"
+        # Configure time mocks for this test
+        self.mock_time.time.return_value = 2000.0
         
         broker = self.create_broker()
         broker.start_time = 1000.0  # Set start time
@@ -208,10 +225,9 @@ class TestMQTTBroker(unittest.TestCase):
         self.assertEqual(payload['uptime_seconds'], 1000.0)  # 2000 - 1000
         
         # Verify success logging
-        mock_logging.debug.assert_called_with("Published status update")
+        self.mock_logging.debug.assert_called_with("Published status update")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_publish_status_update_failure(self, mock_logging):
+    def test_publish_status_update_failure(self):
         """Test status update publishing failure."""
         broker = self.create_broker()
         self.mock_mqtt_client.publish.return_value = False
@@ -220,7 +236,7 @@ class TestMQTTBroker(unittest.TestCase):
         broker.publish_status_update()
         
         # Verify warning logging
-        mock_logging.warning.assert_called_with("Failed to publish status update")
+        self.mock_logging.warning.assert_called_with("Failed to publish status update")
     
     def test_publish_status_update_not_connected(self):
         """Test status update when not connected."""
@@ -233,12 +249,8 @@ class TestMQTTBroker(unittest.TestCase):
         # Verify publish was not called
         self.mock_mqtt_client.publish.assert_not_called()
     
-    @patch('src.mqtt_broker.mqtt_broker.datetime')
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_handle_imu_data_message_valid(self, mock_logging, mock_datetime):
+    def test_handle_imu_data_message_valid(self):
         """Test handling valid IMU data message."""
-        mock_datetime.now.return_value.isoformat.return_value = "2023-01-01T12:00:00"
-        
         broker = self.create_broker()
         
         payload = {
@@ -260,10 +272,9 @@ class TestMQTTBroker(unittest.TestCase):
         self.assertIn('timestamp', processed_payload)
         
         # Verify info logging
-        mock_logging.info.assert_called_with("Received IMU data from device: test_device (messages: 1)")
+        self.mock_logging.info.assert_called_with("Received IMU data from device: test_device (messages: 1)")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_handle_imu_data_message_missing_device_id(self, mock_logging):
+    def test_handle_imu_data_message_missing_device_id(self):
         """Test handling IMU data message without device ID."""
         broker = self.create_broker()
         
@@ -276,13 +287,12 @@ class TestMQTTBroker(unittest.TestCase):
         broker.handle_imu_data_message(payload)
         
         # Verify error logging
-        mock_logging.error.assert_called_with("IMU data message missing 'deviceId' field")
+        self.mock_logging.error.assert_called_with("IMU data message missing 'deviceId' field")
         
         # Verify IMU buffer was not called
         self.mock_imu_buffer.process_sensor_reading.assert_not_called()
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_handle_imu_data_message_empty_payload(self, mock_logging):
+    def test_handle_imu_data_message_empty_payload(self):
         """Test handling IMU data message with empty payload."""
         broker = self.create_broker()
         
@@ -296,13 +306,12 @@ class TestMQTTBroker(unittest.TestCase):
         broker.handle_imu_data_message(payload)
         
         # Verify error logging
-        mock_logging.error.assert_called_with("IMU data payload must be a non-empty array")
+        self.mock_logging.error.assert_called_with("IMU data payload must be a non-empty array")
         
         # Verify IMU buffer was not called
         self.mock_imu_buffer.process_sensor_reading.assert_not_called()
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_publish_recording_command_success(self, mock_logging):
+    def test_publish_recording_command_success(self):
         """Test successful recording command publishing."""
         broker = self.create_broker()
         
@@ -324,10 +333,9 @@ class TestMQTTBroker(unittest.TestCase):
         self.assertEqual(payload['command'], 'start')
         
         # Verify success logging
-        mock_logging.info.assert_called_with("Published recording command: start")
+        self.mock_logging.info.assert_called_with("Published recording command: start")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_publish_recording_command_failure(self, mock_logging):
+    def test_publish_recording_command_failure(self):
         """Test recording command publishing failure."""
         broker = self.create_broker()
         self.mock_mqtt_client.publish.return_value = False
@@ -338,12 +346,9 @@ class TestMQTTBroker(unittest.TestCase):
         broker.publish_recording_command(command)
         
         # Verify error logging
-        mock_logging.error.assert_called_with("Failed to publish recording command")
+        self.mock_logging.error.assert_called_with("Failed to publish recording command")
     
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    @patch('src.mqtt_broker.mqtt_broker.time')
-    @patch('src.mqtt_broker.mqtt_broker.sys')
-    def test_signal_handler(self, mock_sys, mock_time, mock_logging):
+    def test_signal_handler(self):
         """Test signal handler for graceful shutdown."""
         broker = self.create_broker()
         
@@ -352,26 +357,17 @@ class TestMQTTBroker(unittest.TestCase):
         
         # Verify shutdown sequence
         self.assertFalse(broker.service_running)
-        mock_time.sleep.assert_called_with(1)
+        self.mock_time.sleep.assert_called_with(1)
         self.mock_mqtt_client.loop_stop.assert_called_once()
         self.mock_mqtt_client.disconnect.assert_called_once()
-        mock_sys.exit.assert_called_with(0)
+        self.mock_sys.exit.assert_called_with(0)
         
         # Verify shutdown logging
-        mock_logging.info.assert_called_with("Received signal 2. Shutting down...")
+        self.mock_logging.info.assert_called_with("Received signal 2. Shutting down...")
     
-    @patch('src.mqtt_broker.mqtt_broker.socket')
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_get_ip_address_success(self, mock_logging, mock_socket):
+    def test_get_ip_address_success(self):
         """Test successful IP address retrieval using socket auto-detection."""
         broker = self.create_broker()
-        
-        # Mock socket operations
-        mock_socket_instance = Mock()
-        mock_socket.socket.return_value = mock_socket_instance
-        mock_socket.AF_INET = 2
-        mock_socket.SOCK_DGRAM = 2
-        mock_socket_instance.getsockname.return_value = ("192.168.1.100", 12345)
         
         # Call the method
         result = broker.get_ip_address()
@@ -380,13 +376,11 @@ class TestMQTTBroker(unittest.TestCase):
         self.assertEqual(result, "192.168.1.100")
         
         # Verify socket operations
-        mock_socket.socket.assert_called_with(2, 2)  # AF_INET, SOCK_DGRAM
-        mock_socket_instance.connect.assert_called_with(("8.8.8.8", 80))
-        mock_socket_instance.close.assert_called_once()
+        self.mock_socket.socket.assert_called_with(2, 2)  # AF_INET, SOCK_DGRAM
+        self.mock_socket_instance.connect.assert_called_with(("8.8.8.8", 80))
+        self.mock_socket_instance.close.assert_called_once()
     
-    @patch('src.mqtt_broker.mqtt_broker.socket')
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_get_ip_address_with_config(self, mock_logging, mock_socket):
+    def test_get_ip_address_with_config(self):
         """Test IP address retrieval when specified in config."""
         broker = self.create_broker()
         broker.config['network'] = {'ip': '10.0.0.1'}
@@ -398,16 +392,14 @@ class TestMQTTBroker(unittest.TestCase):
         self.assertEqual(result, "10.0.0.1")
         
         # Verify socket operations were not called
-        mock_socket.socket.assert_not_called()
+        self.mock_socket.socket.assert_not_called()
     
-    @patch('src.mqtt_broker.mqtt_broker.socket')
-    @patch('src.mqtt_broker.mqtt_broker.logging')
-    def test_get_ip_address_failure(self, mock_logging, mock_socket):
+    def test_get_ip_address_failure(self):
         """Test IP address retrieval failure."""
         broker = self.create_broker()
         
         # Mock socket to raise exception
-        mock_socket.socket.side_effect = Exception("Network error")
+        self.mock_socket.socket.side_effect = Exception("Network error")
         
         # Call the method
         result = broker.get_ip_address()
@@ -416,7 +408,7 @@ class TestMQTTBroker(unittest.TestCase):
         self.assertEqual(result, "localhost")
         
         # Verify error logging
-        mock_logging.error.assert_called_with("Error getting IP address: Network error")
+        self.mock_logging.error.assert_called_with("Error getting IP address: Network error")
     
     def test_recording_state_transitions(self):
         """Test recording state management."""
