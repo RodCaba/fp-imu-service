@@ -1,13 +1,15 @@
-import paho.mqtt.client as mqtt
 import json
-import logging
 import time
+import logging
 import sys
 import socket
 from datetime import datetime
 from enum import Enum
+from typing import Dict, Any
 
-from src.imu_buffer import IMUBuffer
+from .abstractions.mqtt_client import MQTTClient
+from ..imu_buffer import IMUBuffer
+
 
 class RecordingState(Enum):
     """Enumeration for the different states of recording."""
@@ -19,18 +21,26 @@ class MQTTBroker:
   """
   A class to manage MQTT broker connections and message handling.
   """
-  def __init__(self, config, imu_buffer: IMUBuffer):
+  def __init__(self, 
+               config: Dict[str, Any], 
+               mqtt_client: MQTTClient,
+               imu_buffer: IMUBuffer):
     """
-    Initialize the MQTT broker with configuration.
+    Initialize the MQTT broker with configuration and dependencies.
     :param config: Dictionary containing MQTT configuration parameters.
+    :param mqtt_client: MQTT client abstraction
+    :param imu_buffer: IMU buffer abstraction
     """
     self.config = config
     self.MQTT_TOPICS = config['mqtt']['topics']
-    self.client = mqtt.Client(self.config['mqtt']['client_id'])
+    self.client = mqtt_client
+    self.imu_buffer = imu_buffer
+    
     # Set up MQTT client callbacks
-    self.client.on_connect = self.on_connect
-    self.client.on_message = self.on_message
-    self.client.on_disconnect = self.on_disconnect
+    self.client.set_on_connect_callback(self.on_connect)
+    self.client.set_on_message_callback(self.on_message)
+    self.client.set_on_disconnect_callback(self.on_disconnect)
+    
     # Initialize state variables
     self.start_time = time.time()
     self.current_recording_state = RecordingState.IDLE
@@ -45,18 +55,16 @@ class MQTTBroker:
     except Exception as e:
         logging.error(f"Failed to connect to MQTT broker: {str(e)}")
 
-    self.imu_buffer = imu_buffer
-
     # MQTT Event Handlers
   def on_connect(self, client, userdata, flags, rc):
       """Callback for when the MQTT client connects to the broker"""
       if rc == 0:
           logging.info("Connected to MQTT broker successfully")
-          
+
           # Subscribe to all relevant topics
-          client.subscribe(self.MQTT_TOPICS['recording_control'])
-          client.subscribe(self.MQTT_TOPICS['data_stream'])
-          client.subscribe(self.MQTT_TOPICS['status'])
+          self.client.subscribe(self.MQTT_TOPICS['recording_control'])
+          self.client.subscribe(self.MQTT_TOPICS['data_stream'])
+          self.client.subscribe(self.MQTT_TOPICS['status'])
 
           # Publish initial status
           self.publish_status_update()
@@ -69,9 +77,8 @@ class MQTTBroker:
       try:
           topic = msg.topic
           payload = json.loads(msg.payload.decode())
-          
           logging.info(f"Received MQTT message on topic {topic}")
-          
+          logging.debug(f"MQTT message payload: {payload}")
 
           if topic == self.MQTT_TOPICS['data_stream']:
               self.handle_imu_data_message(payload)
@@ -100,13 +107,15 @@ class MQTTBroker:
                 'mqtt_status': 'connected',
                 'uptime_seconds': time.time() - self.start_time,
             }
-            result = self.client.publish(
+            success = self.client.publish(
                 self.MQTT_TOPICS['status'], 
                 json.dumps(status),
                 qos=0
             )
-            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            if success:
                 logging.debug(f"Published status update")
+            else:
+                logging.warning("Failed to publish status update")
         except Exception as e:
             logging.error(f"Error publishing status update: {str(e)}")
 
@@ -125,9 +134,9 @@ class MQTTBroker:
         if not isinstance(imu_payload, list) or not imu_payload:
             logging.error("IMU data payload must be a non-empty array")
             return
-        
+
         logging.info(f"Received IMU data from device: {device_id} (messages: {len(imu_payload)})")
-        
+
         payload = {
             'deviceId': device_id,
             'payload': imu_payload,
@@ -144,15 +153,15 @@ class MQTTBroker:
     """Publish recording command to devices"""
     if self.client and self.client.is_connected():
         try:
-            result = self.client.publish(
+            success = self.client.publish(
                 self.MQTT_TOPICS['recording_control'], 
                 json.dumps(command),
                 qos=1
             )
-            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            if success:
                 logging.info(f"Published recording command: {command['command']}")
             else:
-                logging.error(f"Failed to publish recording command: {result.rc}")
+                logging.error(f"Failed to publish recording command")
         except Exception as e:
             logging.error(f"Error publishing recording command: {str(e)}")
 
