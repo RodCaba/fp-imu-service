@@ -78,7 +78,7 @@ class MQTTBroker:
           topic = msg.topic
           payload = json.loads(msg.payload.decode())
           logging.info(f"Received MQTT message on topic {topic}")
-          logging.debug(f"MQTT message payload: {payload}")
+          logging.info(f"MQTT message payload: {payload}")
 
           if topic == self.MQTT_TOPICS['data_stream']:
               self.handle_imu_data_message(payload)
