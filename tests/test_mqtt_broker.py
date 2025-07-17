@@ -262,17 +262,16 @@ class TestMQTTBroker(unittest.TestCase):
         # Call the method
         broker.handle_imu_data_message(payload)
         
-        # Verify IMU buffer was called
+        # Verify IMU buffer was called once for each data point
         self.mock_imu_buffer.process_sensor_reading.assert_called_once()
         
-        # Get the processed payload
+        # Get the processed payload (now in IMU buffer format)
         processed_payload = self.mock_imu_buffer.process_sensor_reading.call_args[0][0]
-        self.assertEqual(processed_payload['deviceId'], 'test_device')
         self.assertEqual(processed_payload['sensor_name'], 'accelerometer')
-        self.assertIn('timestamp', processed_payload)
+        self.assertEqual(processed_payload['payload'], {'x': 1.0, 'y': 2.0, 'z': 3.0})
         
-        # Verify info logging
-        self.mock_logging.info.assert_called_with("Received IMU data from device: test_device (messages: 1)")
+        # Verify info logging with updated message format
+        self.mock_logging.info.assert_called_with("Received IMU data from device: test_device (sensor: accelerometer, data points: 1)")
     
     def test_handle_imu_data_message_missing_device_id(self):
         """Test handling IMU data message without device ID."""

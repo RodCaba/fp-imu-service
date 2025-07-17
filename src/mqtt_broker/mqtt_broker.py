@@ -135,16 +135,23 @@ class MQTTBroker:
             logging.error("IMU data payload must be a non-empty array")
             return
 
-        logging.info(f"Received IMU data from device: {device_id} (messages: {len(imu_payload)})")
+        if not sensor_name:
+            logging.error("IMU data message missing 'name' field")
+            return
 
-        payload = {
-            'deviceId': device_id,
-            'payload': imu_payload,
-            'timestamp': datetime.now().isoformat(),
-            'sensor_name': sensor_name
-        }
+        logging.info(f"Received IMU data from device: {device_id} (sensor: {sensor_name}, data points: {len(imu_payload)})")
 
-        self.imu_buffer.process_sensor_reading(payload)
+        # Process each data point in the payload individually
+        for sensor_data in imu_payload:
+            if isinstance(sensor_data, dict):
+                # Format the data for the IMU buffer (individual sensor reading)
+                formatted_reading = {
+                    'sensor_name': sensor_name,
+                    'payload': sensor_data  # Individual dict, not list
+                }
+                self.imu_buffer.process_sensor_reading(formatted_reading)
+            else:
+                logging.warning(f"Skipping invalid sensor data point from device {device_id}: {sensor_data}")
 
     except Exception as e:
         logging.error(f"Error handling IMU data message: {str(e)}")
