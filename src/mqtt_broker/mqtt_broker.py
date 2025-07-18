@@ -178,6 +178,7 @@ class MQTTBroker:
                     'sensor_name': sensor_name,
                     'payload': sensor_data  # Individual dict, not list
                 }
+                logging.debug(f"Processing IMU data for sensor: {sensor_name}, data: {sensor_data}")
                 self.imu_buffer.process_sensor_reading(formatted_reading)
             else:
                 logging.warning(f"Skipping invalid sensor data point from device {device_id}: {sensor_data}")
