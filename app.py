@@ -49,7 +49,7 @@ def main():
     
 
     # Start background status update thread
-    status_thread = threading.Thread(target=status_update_thread(mqtt_broker), daemon=True)
+    status_thread = threading.Thread(target=status_update_thread, args=(mqtt_broker,), daemon=True)
     status_thread.start()
     
     try:
