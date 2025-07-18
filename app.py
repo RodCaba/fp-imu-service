@@ -4,8 +4,9 @@ import threading
 import time
 import signal
 import sys
-from src.mqtt_broker import MQTTBroker
+from src.mqtt_broker.mqtt_broker import MQTTBroker
 from src.imu_buffer import IMUBuffer
+from src.mqtt_broker.factories.mqtt_broker_factory import MQTTBrokerFactory
 
 # Configure logging
 logging.basicConfig(
@@ -33,7 +34,7 @@ def status_update_thread(mqtt_broker: MQTTBroker):
 def main():
     """Main service function"""
     imu_buffer = IMUBuffer(config)
-    mqtt_broker = MQTTBroker(config, imu_buffer)
+    mqtt_broker = MQTTBrokerFactory.create_production_broker(config, imu_buffer)
 
     if not mqtt_broker.service_running:
         logging.error("Failed to initialize MQTT broker. Exiting.")
