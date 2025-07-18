@@ -108,14 +108,28 @@ class MQTTBroker:
 
   def on_disconnect(self, client, userdata, rc):
       """Callback for when the MQTT client disconnects"""
+      self.connection_established = False
+      
       if rc != 0:
           logging.warning(f"Unexpected MQTT disconnection with code {rc}")
+          # Attempt to reconnect automatically
+          self._attempt_reconnection()
       else:
           logging.info("Disconnected from MQTT broker")
 
+  def _attempt_reconnection(self):
+      """Attempt to reconnect to the MQTT broker"""
+      if self.service_running:
+          try:
+              logging.info("Attempting to reconnect to MQTT broker...")
+              self.client.reconnect()
+          except Exception as e:
+              logging.error(f"Failed to reconnect to MQTT broker: {str(e)}")
+              # Don't set service_running to False here, let the timeout logic handle it
+
   def publish_status_update(self):
     """Publish current server status"""
-    if self.client and self.client.is_connected():
+    if self.client and self.client.is_connected() and self.connection_established:
         try:
             status = {
                 'recording_state': self.current_recording_state.value,
@@ -135,6 +149,8 @@ class MQTTBroker:
                 logging.warning("Failed to publish status update")
         except Exception as e:
             logging.error(f"Error publishing status update: {str(e)}")
+    else:
+        logging.debug("Skipping status update - MQTT client not properly connected")
 
   def handle_imu_data_message(self, payload):
     """Handle incoming IMU data via MQTT, returns the validated payload to the next instance"""

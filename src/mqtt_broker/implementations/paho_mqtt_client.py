@@ -14,6 +14,9 @@ class PahoMQTTClientAdapter(MQTTClient):
     def disconnect(self) -> None:
         self._client.disconnect()
     
+    def reconnect(self) -> None:
+        self._client.reconnect()
+    
     def subscribe(self, topic: str, qos: int = 0) -> None:
         self._client.subscribe(topic, qos)
     

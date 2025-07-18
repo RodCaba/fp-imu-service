@@ -15,6 +15,11 @@ class MQTTClient(ABC):
         pass
     
     @abstractmethod
+    def reconnect(self) -> None:
+        """Reconnect to MQTT broker."""
+        pass
+    
+    @abstractmethod
     def subscribe(self, topic: str, qos: int = 0) -> None:
         """Subscribe to a topic."""
         pass

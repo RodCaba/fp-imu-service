@@ -18,8 +18,14 @@ class MQTTBrokerFactory:
         :param imu_buffer: The IMU buffer instance
         :return: Configured MQTTBroker instance
         """
+        # Generate unique client ID to avoid conflicts
+        import uuid
+        base_client_id = config['mqtt'].get('client_id', 'imu_server')
+        unique_suffix = str(uuid.uuid4())[:8]
+        unique_client_id = f"{base_client_id}_{unique_suffix}"
+        
         # Create concrete implementations
-        mqtt_client = PahoMQTTClientAdapter(config['mqtt']['client_id'])
+        mqtt_client = PahoMQTTClientAdapter(unique_client_id)
         
         return MQTTBroker(
             config=config,
