@@ -36,15 +36,19 @@ class IMUMessageHandler(MessageHandler):
             if not payload:
                 raise ValueError("Payload is empty or missing in the data")
 
-            logging.info(f"Processing data: {payload}")
-            if 'name' not in payload or 'values' not in payload:
-                raise ValueError("Payload must contain 'name' and 'values' keys")
+            # Payload is a list of {'sensor_name': str, 'values': list}
 
-            # Process the sensor reading
-            sensor_reading = {
-                'sensor_name': payload['name'],
-                'payload': payload['values'],
-            }
-            self.imu_buffer.process_sensor_reading(sensor_reading)
+            for sensor_data in payload:
+                if 'sensor_name' not in sensor_data or 'values' not in sensor_data:
+                    raise ValueError("Each sensor data must contain 'sensor_name' and 'values' keys")
+                
+                sensor_reading = {
+                    'sensor_name': sensor_data['sensor_name'],
+                    'payload': sensor_data['values'],
+                }
+                # Process each sensor reading
+                logging.info(f"Processing sensor reading: {sensor_reading}")
+                self.imu_buffer.process_sensor_reading(sensor_reading)
+
         except Exception as e:
             raise RuntimeError(f"Failed to process data: {str(e)}")
