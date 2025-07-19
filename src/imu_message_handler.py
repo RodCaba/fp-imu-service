@@ -36,6 +36,7 @@ class IMUMessageHandler(MessageHandler):
             if not payload:
                 raise ValueError("Payload is empty or missing in the data")
 
+            logging.info(f"Processing data: {payload}")
             if 'name' not in payload or 'values' not in payload:
                 raise ValueError("Payload must contain 'name' and 'values' keys")
 
