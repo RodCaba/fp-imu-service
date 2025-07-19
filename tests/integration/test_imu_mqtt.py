@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 from src.imu_buffer import IMUBuffer
 from src.imu_message_handler import IMUMessageHandler
-from fp_mqtt_broker.factories import BrokerFactory
+from fp_mqtt_broker import BrokerFactory
 
 @pytest.fixture
 def integration_config():
