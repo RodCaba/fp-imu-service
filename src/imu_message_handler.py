@@ -20,8 +20,8 @@ class IMUMessageHandler(MessageHandler):
         Handle incoming MQTT messages.
         """
         try:
-          if topic == self.config['mqtt']['topics']['data_stream']:
-              self.handle_data_processing(payload)
+            if topic == self.config['mqtt']['topics']['data_stream']:
+                self.handle_data_processing(payload)
         except Exception as e:
             raise RuntimeError(f"Failed to process IMU message: {str(e)}")
         
