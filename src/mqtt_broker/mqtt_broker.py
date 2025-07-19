@@ -45,26 +45,15 @@ class MQTTBroker:
     self.start_time = time.time()
     self.current_recording_state = RecordingState.IDLE
     self.service_running = False
-    self.connection_established = False
 
     try:
         logging.info(f"Attempting to connect to MQTT broker at {self.config['mqtt']['broker_host']}:{self.config['mqtt']['broker_port']}")
         self.client.connect(self.config['mqtt']['broker_host'], self.config['mqtt']['broker_port'], 60)
         self.client.loop_start()
         
-        # Wait for connection to be established (with timeout)
-        connection_timeout = 10  # seconds
-        connection_start_time = time.time()
-        
-        while not self.connection_established and (time.time() - connection_start_time) < connection_timeout:
-            time.sleep(0.1)
-        
-        if self.connection_established:
-            self.service_running = True
-            logging.info("MQTT broker service started successfully")
-        else:
-            logging.error("Failed to establish MQTT connection within timeout period")
-            self.client.loop_stop()
+        logging.info("MQTT broker service started successfully")
+
+        self.service_running = True
 
     except Exception as e:
         logging.error(f"Failed to connect to MQTT broker: {str(e)}")
@@ -75,7 +64,6 @@ class MQTTBroker:
       """Callback for when the MQTT client connects to the broker"""
       if rc == 0:
           logging.info("Connected to MQTT broker successfully")
-          self.connection_established = True
 
           # Subscribe to all relevant topics
           self.client.subscribe(self.MQTT_TOPICS['recording_control'])
@@ -87,7 +75,6 @@ class MQTTBroker:
 
       else:
           logging.error(f"Failed to connect to MQTT broker with code {rc}")
-          self.connection_established = False
 
   def on_message(self, client, userdata, msg):
       """Callback for when a message is received on a subscribed topic"""
@@ -107,8 +94,6 @@ class MQTTBroker:
 
   def on_disconnect(self, client, userdata, rc):
       """Callback for when the MQTT client disconnects"""
-      self.connection_established = False
-      
       if rc != 0:
           logging.warning(f"Unexpected MQTT disconnection with code {rc}")
           # Attempt to reconnect automatically
@@ -128,7 +113,7 @@ class MQTTBroker:
 
   def publish_status_update(self):
     """Publish current server status"""
-    if self.client and self.client.is_connected() and self.connection_established:
+    if self.client and self.client.is_connected():
         try:
             status = {
                 'recording_state': self.current_recording_state.value,
@@ -142,6 +127,7 @@ class MQTTBroker:
                 json.dumps(status),
                 qos=0
             )
+            print(f"📡 Publicando estado del servicio: {status}")
             if success:
                 logging.debug(f"Published status update")
             else:
