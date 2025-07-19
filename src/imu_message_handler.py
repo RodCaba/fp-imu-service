@@ -33,8 +33,8 @@ class IMUMessageHandler(MessageHandler):
         try:
             payload = data.get('payload', [])
 
-            if not payload:
-                raise ValueError("Payload is empty or missing in the data")
+            if not isinstance(payload, list) or len(payload) == 0:
+                raise ValueError("Payload is not a valid list or is empty")
 
             # Payload is a list of {'name': str, 'values': dict}
 
