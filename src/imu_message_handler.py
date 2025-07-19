@@ -30,12 +30,13 @@ class IMUMessageHandler(MessageHandler):
         Handle data processing requests.
         :param data: Data to be processed.
         """
-        logging.info(f"Processing data: {data}")
         try:
-            if 'payload' in data and 'name' in data and len(data['payload']) > 0:
+            if 'payload' in data and len(data['payload']) > 0:
+                # Assuming payload is a list of sensor readings
+                payload = data['payload']
                 sensor_reading = {
-                    'sensor_name': data['name'],
-                    'payload': data['payload'][0] if isinstance(data['payload'], list) else data['payload']
+                    'sensor_name': payload['name'],
+                    'payload': payload['values'],
                 }
                 self.imu_buffer.process_sensor_reading(sensor_reading)
         except Exception as e:

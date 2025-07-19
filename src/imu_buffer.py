@@ -15,7 +15,7 @@ class IMUBuffer:
         """Process a single sensor reading and add it to the appropriate buffer."""
         name = reading['sensor_name']
         values = reading['payload']
-
+        logging.info(f"Processing sensor reading: {name} with values: {values}")
         try:
           # Add reading to the appropriate buffer based on the sensor name
           if name == 'accelerometer':
