@@ -36,7 +36,7 @@ class IMUMessageHandler(MessageHandler):
             if not payload:
                 raise ValueError("Payload is empty or missing in the data")
 
-            # Payload is a list of {'sensor_name': str, 'values': list}
+            # Payload is a list of {'name': str, 'values': dict}
 
             for sensor_data in payload:
                 if 'name' not in sensor_data or 'values' not in sensor_data:

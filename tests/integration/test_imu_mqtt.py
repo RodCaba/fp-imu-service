@@ -50,8 +50,10 @@ class TestIMUMQTTIntegration:
         # Simulate accelerometer MQTT message
         mqtt_payload = {
             'deviceId': 'test_device_001',
-            'payload': [{'x': 1.5, 'y': 2.5, 'z': 3.5}],
-            'name': 'accelerometer'
+            'payload': [{
+                'name': 'accelerometer',
+                'values': {'x': 1.5, 'y': 2.5, 'z': 3.5}
+            }],
         }
         
         # Process message through handler
@@ -76,8 +78,9 @@ class TestIMUMQTTIntegration:
         # Simulate gyroscope MQTT message
         mqtt_payload = {
             'deviceId': 'test_device_002',
-            'payload': [{'x': -0.5, 'y': 1.2, 'z': -2.1}],
-            'name': 'gyroscope'
+            'payload': [
+                {'name': 'gyroscope', 'values': {'x': -0.5, 'y': 1.2, 'z': -2.1}}
+            ],
         }
         
         topic = integration_config['mqtt']['topics']['data_stream']
@@ -96,10 +99,12 @@ class TestIMUMQTTIntegration:
         mqtt_payload = {
             'deviceId': 'test_device_003',
             'payload': [{
-                'qx': 0.1, 'qy': 0.2, 'qz': 0.3, 'qw': 0.9,
-                'roll': 10.5, 'pitch': 15.2, 'yaw': 45.7
+                'name': 'orientation',
+                'values': {
+                    'qx': 0.1, 'qy': 0.2, 'qz': 0.3, 'qw': 0.9,
+                    'roll': 10.5, 'pitch': 15.2, 'yaw': 45.7
+                }
             }],
-            'name': 'orientation'
         }
         
         topic = integration_config['mqtt']['topics']['data_stream']
@@ -121,24 +126,27 @@ class TestIMUMQTTIntegration:
         # Send accelerometer data
         accel_payload = {
             'deviceId': 'device_multi',
-            'payload': [{'x': 1.0, 'y': 2.0, 'z': 3.0}],
-            'name': 'accelerometer'
+            'payload': [
+                {'name': 'accelerometer', 'values': {'x': 1.0, 'y': 2.0, 'z': 3.0}}
+            ],
         }
         imu_message_handler.handle_message(topic, accel_payload)
         
         # Send gyroscope data
         gyro_payload = {
             'deviceId': 'device_multi',
-            'payload': [{'x': 0.1, 'y': 0.2, 'z': 0.3}],
-            'name': 'gyroscope'
+            'payload': [
+                {'name': 'gyroscope', 'values': {'x': 0.1, 'y': 0.2, 'z': 0.3}}
+            ],
         }
         imu_message_handler.handle_message(topic, gyro_payload)
         
         # Send gravity data
         gravity_payload = {
             'deviceId': 'device_multi',
-            'payload': [{'x': 0.0, 'y': 0.0, 'z': 9.81}],
-            'name': 'gravity'
+            'payload': [
+                {'name': 'gravity', 'values': {'x': 0.0, 'y': 0.0, 'z': 9.81}}
+            ],
         }
         imu_message_handler.handle_message(topic, gravity_payload)
         
@@ -161,8 +169,12 @@ class TestIMUMQTTIntegration:
         # Test invalid sensor data (missing required fields)
         invalid_payload = {
             'deviceId': 'test_device',
-            'payload': [{'x': 1.0}],  # Missing y and z
-            'name': 'accelerometer'
+            'payload': [
+                {
+                    'name': 'accelerometer',
+                    'values': {'x': 1.0}
+                }
+            ],  # Missing y and z
         }
         
         with patch('src.imu_buffer.logging') as mock_logging:
@@ -189,8 +201,9 @@ class TestIMUMQTTIntegration:
         for i in range(5):
             payload = {
                 'deviceId': f'device_{i}',
-                'payload': [{'x': float(i), 'y': float(i+1), 'z': float(i+2)}],
-                'name': 'accelerometer'
+                'payload': [
+                    {'name': 'accelerometer', 'values': {'x': float(i), 'y': float(i+1), 'z': float(i+2)}}
+                ]
             }
             handler.handle_message(topic, payload)
         
@@ -212,8 +225,9 @@ class TestIMUMQTTIntegration:
             for i in range(10):
                 payload = {
                     'deviceId': f'accel_device_{i}',
-                    'payload': [{'x': float(i), 'y': float(i+1), 'z': float(i+2)}],
-                    'name': 'accelerometer'
+                    'payload': [
+                        {'name': 'accelerometer', 'values': {'x': float(i), 'y': float(i+1), 'z': float(i+2)}}
+                    ]
                 }
                 imu_message_handler.handle_message(topic, payload)
                 time.sleep(0.01)
@@ -222,8 +236,9 @@ class TestIMUMQTTIntegration:
             for i in range(10):
                 payload = {
                     'deviceId': f'gyro_device_{i}',
-                    'payload': [{'x': float(i*0.1), 'y': float((i+1)*0.1), 'z': float((i+2)*0.1)}],
-                    'name': 'gyroscope'
+                    'payload': [
+                        {'name': 'gyroscope', 'values': {'x': float(i*0.1), 'y': float((i+1)*0.1), 'z': float((i+2)*0.1)}}
+                    ]
                 }
                 imu_message_handler.handle_message(topic, payload)
                 time.sleep(0.01)
@@ -264,8 +279,9 @@ class TestIMUMQTTIntegration:
         mock_msg.topic = expected_topic
         mock_msg.payload.decode.return_value = json.dumps({
             'deviceId': 'integration_test',
-            'payload': [{'x': 5.5, 'y': 6.6, 'z': 7.7}],
-            'name': 'accelerometer'
+            'payload': [
+                {'name': 'accelerometer', 'values': {'x': 5.5, 'y': 6.6, 'z': 7.7}}
+            ]
         })
         
         # Process message through broker
@@ -284,43 +300,25 @@ class TestIMUMQTTIntegration:
         # Test various invalid message formats
         invalid_messages = [
             # Missing payload
-            {'deviceId': 'test', 'name': 'accelerometer'},
+            {'deviceId': 'test'},
             # Invalid payload type
-            {'deviceId': 'test', 'payload': 'invalid', 'name': 'accelerometer'},
+            {'deviceId': 'test', 'payload': 'invalid'},
+            # Payload is object instead of array
+            {'deviceId': 'test', 'payload': {'name': 'accelerometer', 'values': {'x': 1, 'y': 2, 'z': 3}}},
             # Empty payload array
-            {'deviceId': 'test', 'payload': [], 'name': 'accelerometer'},
+            {'deviceId': 'test', 'payload': []},
             # Missing sensor name
-            {'deviceId': 'test', 'payload': [{'x': 1, 'y': 2, 'z': 3}]},
+            {'deviceId': 'test', 'payload': [{'values': {'x': 1, 'y': 2, 'z': 3}}]},
         ]
         
-            
-        with patch('src.imu_buffer.logging') as mock_logging:
-            for invalid_msg in invalid_messages:
-                print(f"Testing invalid message: {invalid_msg}")
+
+        for invalid_msg in invalid_messages:
+            with pytest.raises(RuntimeError):
                 imu_message_handler.handle_message(topic, invalid_msg)
         
         # Verify buffer remains empty after all invalid messages
         buffer_data = imu_buffer.get_data()
         assert all(len(sensor_data) == 0 for sensor_data in buffer_data.values())
-
-    def test_different_payload_formats_integration(self, integration_config, imu_buffer, imu_message_handler):
-        """Test handling different payload formats in integration"""
-        
-        topic = integration_config['mqtt']['topics']['data_stream']
-        
-        # Test single object (not array)
-        single_payload = {
-            'deviceId': 'test_single',
-            'payload': {'x': 1.0, 'y': 2.0, 'z': 3.0},  # Single object, not array
-            'name': 'accelerometer'
-        }
-        
-        imu_message_handler.handle_message(topic, single_payload)
-        
-        # Verify single object was processed
-        buffer_data = imu_buffer.get_data()
-        assert len(buffer_data['accelerometer']) == 1
-        assert buffer_data['accelerometer'][0]['x'] == 1.0
 
     def test_sensor_type_routing_integration(self, integration_config, imu_buffer, imu_message_handler):
         """Test that different sensor types are routed correctly"""
@@ -329,18 +327,17 @@ class TestIMUMQTTIntegration:
         
         # Test all supported sensor types
         sensor_tests = [
-            ('accelerometer', {'x': 1.0, 'y': 1.1, 'z': 1.2}),
-            ('gyroscope', {'x': 2.0, 'y': 2.1, 'z': 2.2}),
-            ('gravity', {'x': 3.0, 'y': 3.1, 'z': 3.2}),
-            ('totalacceleration', {'x': 4.0, 'y': 4.1, 'z': 4.2}),
-            ('orientation', {'qx': 0.1, 'qy': 0.2, 'qz': 0.3, 'qw': 0.9, 'roll': 5.0, 'pitch': 6.0, 'yaw': 7.0})
+            ({'name': 'accelerometer', 'values': {'x': 1.0, 'y': 1.1, 'z': 1.2}}),
+            ({'name': 'gyroscope', 'values': {'x': 2.0, 'y': 2.1, 'z': 2.2}}),
+            ({'name': 'gravity', 'values': {'x': 3.0, 'y': 3.1, 'z': 3.2}}),
+            ({'name': 'totalacceleration', 'values': {'x': 4.0, 'y': 4.1, 'z': 4.2}}),
+            ({'name': 'orientation', 'values': {'qx': 0.1, 'qy': 0.2, 'qz': 0.3, 'qw': 0.9, 'roll': 5.0, 'pitch': 6.0, 'yaw': 7.0}})
         ]
         
-        for sensor_name, sensor_data in sensor_tests:
+        for sensor_data in sensor_tests:
             payload = {
-                'deviceId': f'test_{sensor_name}',
+                'deviceId': 'test_id',
                 'payload': [sensor_data],
-                'name': sensor_name
             }
             imu_message_handler.handle_message(topic, payload)
         
