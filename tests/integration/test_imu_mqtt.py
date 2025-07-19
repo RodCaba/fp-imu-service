@@ -327,11 +327,11 @@ class TestIMUMQTTIntegration:
         
         # Test all supported sensor types
         sensor_tests = [
-            ({'name': 'accelerometer', 'values': {'x': 1.0, 'y': 1.1, 'z': 1.2}}),
-            ({'name': 'gyroscope', 'values': {'x': 2.0, 'y': 2.1, 'z': 2.2}}),
-            ({'name': 'gravity', 'values': {'x': 3.0, 'y': 3.1, 'z': 3.2}}),
-            ({'name': 'totalacceleration', 'values': {'x': 4.0, 'y': 4.1, 'z': 4.2}}),
-            ({'name': 'orientation', 'values': {'qx': 0.1, 'qy': 0.2, 'qz': 0.3, 'qw': 0.9, 'roll': 5.0, 'pitch': 6.0, 'yaw': 7.0}})
+            {'name': 'accelerometer', 'values': {'x': 1.0, 'y': 1.1, 'z': 1.2}},
+            {'name': 'gyroscope', 'values': {'x': 2.0, 'y': 2.1, 'z': 2.2}},
+            {'name': 'gravity', 'values': {'x': 3.0, 'y': 3.1, 'z': 3.2}},
+            {'name': 'totalacceleration', 'values': {'x': 4.0, 'y': 4.1, 'z': 4.2}},
+            {'name': 'orientation', 'values': {'qx': 0.1, 'qy': 0.2, 'qz': 0.3, 'qw': 0.9, 'roll': 5.0, 'pitch': 6.0, 'yaw': 7.0}}
         ]
         
         for sensor_data in sensor_tests:
