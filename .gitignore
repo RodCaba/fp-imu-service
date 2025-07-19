@@ -5,3 +5,6 @@ imu_server.log
 
 # Pycache files
 __pycache__/
+
+# Package created on the same directory
+mqtt-broker-package

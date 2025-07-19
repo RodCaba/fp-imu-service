@@ -1,8 +1,10 @@
 import unittest
+import pytest
 from unittest.mock import patch
 
 from src.imu_buffer import IMUBuffer
 
+@pytest.mark.unit
 class TestIMUBuffer(unittest.TestCase):
     """Test cases for the IMUBuffer class."""
     

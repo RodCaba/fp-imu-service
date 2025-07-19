@@ -4,9 +4,10 @@ import threading
 import time
 import signal
 import sys
-from src.mqtt_broker.mqtt_broker import MQTTBroker
 from src.imu_buffer import IMUBuffer
-from src.mqtt_broker.factories.mqtt_broker_factory import MQTTBrokerFactory
+from src.imu_message_handler import IMUMessageHandler
+from fp_mqtt_broker import BrokerFactory
+from fp_mqtt_broker import MQTTBroker
 
 # Configure logging
 logging.basicConfig(
@@ -34,30 +35,32 @@ def status_update_thread(mqtt_broker: MQTTBroker):
 def main():
     """Main service function"""
     imu_buffer = IMUBuffer(config)
-    mqtt_broker = MQTTBrokerFactory.create_production_broker(config, imu_buffer)
+    message_handlers = [IMUMessageHandler(imu_buffer, config)]
+    broker = BrokerFactory.create_broker(config, message_handlers)
+    is_connected = broker.connect()
 
-    if not mqtt_broker.service_running:
-        logging.error("Failed to initialize MQTT broker. Exiting.")
+    if not is_connected:
+        logging.error("Failed to connect to MQTT broker. Exiting service.")
         sys.exit(1)
-
-    network_ip = mqtt_broker.get_ip_address()
+    logging.info("MQTT broker service started successfully")
+    
+    network_ip = broker.get_ip_address()
     logging.info(f"Service running on IP: {network_ip}")
     logging.info("MQTT broker accessible at: %s:%d", network_ip, config['mqtt']['broker_port'])
 
-    signal.signal(signal.SIGINT, mqtt_broker.signal_handler)
-    signal.signal(signal.SIGTERM, mqtt_broker.signal_handler)
-    
+    signal.signal(signal.SIGINT, broker.signal_handler)
+    signal.signal(signal.SIGTERM, broker.signal_handler)
 
     # Start background status update thread
-    status_thread = threading.Thread(target=status_update_thread, args=(mqtt_broker,), daemon=True)
+    status_thread = threading.Thread(target=status_update_thread, args=(broker,), daemon=True)
     status_thread.start()
     
     try:
         # Keep the service running
-        while mqtt_broker.service_running:
+        while broker.service_running:
             time.sleep(1)
     except KeyboardInterrupt:
-        mqtt_broker.signal_handler(signal.SIGINT, None)
+        broker.signal_handler(signal.SIGINT, None)
         sys.exit(0)
 
 if __name__ == '__main__':
