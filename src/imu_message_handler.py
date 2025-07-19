@@ -1,6 +1,7 @@
 from fp_mqtt_broker import MessageHandler
 from src.imu_buffer import IMUBuffer
 from typing import Dict, Any
+import logging
 
 
 class IMUMessageHandler(MessageHandler):
@@ -15,13 +16,39 @@ class IMUMessageHandler(MessageHandler):
         return [self.config['mqtt']['topics']['data_stream']]
 
     def handle_message(self, topic: str, payload: Dict[str, Any]):
+        """
+        Handle incoming MQTT messages.
+        """
         try:
-            # Transform the message format to match IMUBuffer expectations
-            if 'payload' in payload and 'name' in payload and len(payload['payload']) > 0:
-                sensor_reading = {
-                    'sensor_name': payload['name'],
-                    'payload': payload['payload'][0] if isinstance(payload['payload'], list) else payload['payload']
-                }
-                self.imu_buffer.process_sensor_reading(sensor_reading)
+            if topic == self.config['mqtt']['topics']['data_stream']:
+                self.handle_data_processing(payload)
         except Exception as e:
             raise RuntimeError(f"Failed to process IMU message: {str(e)}")
+        
+    def handle_data_processing(self, data: Dict[str, Any]):
+        """
+        Handle data processing requests.
+        :param data: Data to be processed.
+        """
+        try:
+            payload = data.get('payload', [])
+
+            if not isinstance(payload, list) or len(payload) == 0:
+                raise ValueError("Payload is not a valid list or is empty")
+
+            # Payload is a list of {'name': str, 'values': dict}
+
+            for sensor_data in payload:
+                if 'name' not in sensor_data or 'values' not in sensor_data:
+                    raise ValueError("Each sensor data must contain 'name' and 'values' keys")
+
+                sensor_reading = {
+                    'sensor_name': sensor_data['name'],
+                    'payload': sensor_data['values'],
+                }
+                # Process each sensor reading
+                logging.info(f"Processing sensor reading: {sensor_reading}")
+                self.imu_buffer.process_sensor_reading(sensor_reading)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to process data: {str(e)}")
