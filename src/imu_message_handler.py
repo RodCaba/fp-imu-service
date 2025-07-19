@@ -39,11 +39,11 @@ class IMUMessageHandler(MessageHandler):
             # Payload is a list of {'sensor_name': str, 'values': list}
 
             for sensor_data in payload:
-                if 'sensor_name' not in sensor_data or 'values' not in sensor_data:
-                    raise ValueError("Each sensor data must contain 'sensor_name' and 'values' keys")
-                
+                if 'name' not in sensor_data or 'values' not in sensor_data:
+                    raise ValueError("Each sensor data must contain 'name' and 'values' keys")
+
                 sensor_reading = {
-                    'sensor_name': sensor_data['sensor_name'],
+                    'sensor_name': sensor_data['name'],
                     'payload': sensor_data['values'],
                 }
                 # Process each sensor reading
