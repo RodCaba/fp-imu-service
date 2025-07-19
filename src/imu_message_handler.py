@@ -31,13 +31,19 @@ class IMUMessageHandler(MessageHandler):
         :param data: Data to be processed.
         """
         try:
-            if 'payload' in data and len(data['payload']) > 0:
-                # Assuming payload is a list of sensor readings
-                payload = data['payload']
-                sensor_reading = {
-                    'sensor_name': payload['name'],
-                    'payload': payload['values'],
-                }
-                self.imu_buffer.process_sensor_reading(sensor_reading)
+            payload = data.get('payload', {})
+
+            if not payload:
+                raise ValueError("Payload is empty or missing in the data")
+
+            if 'name' not in payload or 'values' not in payload:
+                raise ValueError("Payload must contain 'name' and 'values' keys")
+
+            # Process the sensor reading
+            sensor_reading = {
+                'sensor_name': payload['name'],
+                'payload': payload['values'],
+            }
+            self.imu_buffer.process_sensor_reading(sensor_reading)
         except Exception as e:
             raise RuntimeError(f"Failed to process data: {str(e)}")
