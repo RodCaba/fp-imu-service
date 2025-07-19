@@ -31,7 +31,7 @@ class IMUMessageHandler(MessageHandler):
         :param data: Data to be processed.
         """
         try:
-            payload = data.get('payload', {})
+            payload = data.get('payload', [])
 
             if not payload:
                 raise ValueError("Payload is empty or missing in the data")
