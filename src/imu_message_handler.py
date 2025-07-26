@@ -1,7 +1,9 @@
+import time
 from fp_mqtt_broker import MessageHandler
 from src.imu_buffer import IMUBuffer
 from typing import Dict, Any
 import logging
+from fp_orchestrator_utils import OrchestratorClient
 
 
 class IMUMessageHandler(MessageHandler):
@@ -11,6 +13,24 @@ class IMUMessageHandler(MessageHandler):
     def __init__(self, imu_buffer: IMUBuffer, config: dict):
         self.imu_buffer = imu_buffer
         self.config = config
+        self.orchestrator_client = OrchestratorClient(
+            server_address=config['orchestrator']['server_address'],
+            timeout=config['orchestrator'].get('timeout', 30)
+        )
+
+        # Wait for orchestrator service to be healthy, for a maximum of 10 retries
+        retries = 10
+        for _ in range(retries):
+            if self.orchestrator_client.health_check():
+                logging.info("Orchestrator service is healthy")
+                break
+            logging.warning(f"Retry {_ + 1}/{retries} to connect to orchestrator service")
+            logging.warning("Orchestrator service is not healthy, retrying in 5 seconds...")
+            time.sleep(5)
+
+        if not self.orchestrator_client.health_check():
+            logging.error("Orchestrator service is not healthy after retries, exiting")
+            raise RuntimeError("Orchestrator service is not healthy")
 
     def get_subscribed_topics(self) -> list:
         return [self.config['mqtt']['topics']['data_stream']]
@@ -20,6 +40,10 @@ class IMUMessageHandler(MessageHandler):
         Handle incoming MQTT messages.
         """
         try:
+            # Get the orchestrator service status
+            orchestrator_status = self.orchestrator_client.get_orchestrator_status()
+            logging.info(f"Orchestrator status: {orchestrator_status}")
+            
             if topic == self.config['mqtt']['topics']['data_stream']:
                 self.handle_data_processing(payload)
         except Exception as e:
