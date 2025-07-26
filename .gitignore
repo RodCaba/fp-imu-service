@@ -1,5 +1,4 @@
 .venv
-.env
 
 # Server log
 imu_server.log
