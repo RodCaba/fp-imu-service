@@ -42,7 +42,7 @@ class IMUMessageHandler(MessageHandler):
         try:
             # Get the orchestrator service status
             orchestrator_status = self.orchestrator_client.get_orchestrator_status()
-            logging.info(f"Orchestrator status: {orchestrator_status}")
+            print(f"Orchestrator status: {orchestrator_status}")
             
             if topic == self.config['mqtt']['topics']['data_stream']:
                 self.handle_data_processing(payload)
