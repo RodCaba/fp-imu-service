@@ -6,6 +6,7 @@ import logging
 from fp_orchestrator_utils import OrchestratorClient
 
 
+
 class IMUMessageHandler(MessageHandler):
     """
     IMU message handler for processing incoming IMU data messages.
@@ -42,12 +43,12 @@ class IMUMessageHandler(MessageHandler):
         try:
             # Get the orchestrator service status
             orchestrator_status = self.orchestrator_client.get_orchestrator_status()
-            print(f"Orchestrator status: {orchestrator_status}")
+            logging.info(f"Orchestrator status: {orchestrator_status}")
             
             if topic == self.config['mqtt']['topics']['data_stream']:
                 self.handle_data_processing(payload)
         except Exception as e:
-            raise RuntimeError(f"Failed to process IMU message: {str(e)}")
+            logging.error(f"Failed to process IMU message: {str(e)}")
         
     def handle_data_processing(self, data: Dict[str, Any]):
         """
