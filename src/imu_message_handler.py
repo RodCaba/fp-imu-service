@@ -45,19 +45,6 @@ class IMUMessageHandler(MessageHandler):
             orchestrator_status = self.orchestrator_client.get_orchestrator_status()
             logging.info(f"Orchestrator status: {orchestrator_status}")
 
-            status_dict = {}
-
-            field_mappings = [
-                'is_ready',
-                'current_activity'
-            ]
-
-            for field in field_mappings:
-                if hasattr(orchestrator_status, field):
-                    status_dict[field] = getattr(orchestrator_status, field)
-
-            logging.info(f"Orchestrator status fields: {status_dict}")
-
             if topic == self.config['mqtt']['topics']['data_stream']:
                 self.handle_data_processing(payload)
         except Exception as e:
