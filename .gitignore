@@ -8,3 +8,6 @@ __pycache__/
 
 # Package created on the same directory
 mqtt-broker-package
+
+proto/
+src/grpc/
