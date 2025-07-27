@@ -41,11 +41,17 @@ class IMUMessageHandler(MessageHandler):
         Handle incoming MQTT messages.
         """
         try:
-            # Get the orchestrator service status
-            orchestrator_status = self.orchestrator_client.get_orchestrator_status()
-            logging.info(f"Orchestrator status: {orchestrator_status}")
 
             if topic == self.config['mqtt']['topics']['data_stream']:
+                # Get the orchestrator service status
+                orchestrator_status = self.orchestrator_client.get_orchestrator_status()
+                logging.info(f"Orchestrator status: {orchestrator_status}")
+
+                # Check if orchestrator service is ready
+                if not orchestrator_status.get('is_ready', False):
+                    logging.error("Orchestrator service is not ready, cannot process IMU data")
+                    return
+                
                 self.handle_data_processing(payload)
         except Exception as e:
             logging.error(f"Failed to process IMU message: {str(e)}")
