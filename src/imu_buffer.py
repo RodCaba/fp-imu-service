@@ -1,6 +1,5 @@
 import logging
 from fp_orchestrator_utils import OrchestratorClient
-from datetime import datetime
 
 class IMUBuffer:
     """Class to manage the IMU data buffer."""

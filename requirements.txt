@@ -4,4 +4,4 @@ pytest-mock==3.14.1
 coverage==7.9.1
 pytest-cov==6.2.1
 fp-mqtt-broker==0.1.2
-fp-orchestrator-utils==0.1.16
+fp-orchestrator-utils==0.1.17
