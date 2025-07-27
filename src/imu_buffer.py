@@ -1,39 +1,25 @@
 import logging
+from fp_orchestrator_utils import OrchestratorClient
+from datetime import datetime
 
 class IMUBuffer:
     """Class to manage the IMU data buffer."""
     
-    def __init__(self, config):
-        self.accelerometer_data_buffer = []
-        self.gyroscope_data_buffer = []
-        self.gravity_data_buffer = []
-        self.total_acceleration_data_buffer = []
-        self.orientation_data_buffer = []
+    def __init__(self, config, orchestrator_client: OrchestratorClient):
         self.max_size = config['data']['max_buffer_size']
+        self.orchestrator_client = orchestrator_client
 
     def process_sensor_reading(self, reading):
         """Process a single sensor reading and add it to the appropriate buffer."""
         name = reading['sensor_name']
         values = reading['payload']
+        device_id = reading.get('device_id', 'unknown')
 
         try:
           # Add reading to the appropriate buffer based on the sensor name
-          if name == 'accelerometer':
-              self.validate_sensor_values(values, name)
-              self.add_to_buffer(values, self.accelerometer_data_buffer)
-          elif name == 'gyroscope':
-              self.validate_sensor_values(values, name)
-              self.add_to_buffer(values, self.gyroscope_data_buffer)
-          elif name == 'gravity':
-              self.validate_sensor_values(values, name)
-              self.add_to_buffer(values, self.gravity_data_buffer)
-          elif name == 'totalacceleration':
-              self.validate_sensor_values(values, name)
-              self.add_to_buffer(values, self.total_acceleration_data_buffer)
-          elif name == 'orientation':
-              self.validate_sensor_values(values, name)
-              self.add_to_buffer(values, self.orientation_data_buffer)
-  
+          self.validate_sensor_values(values, name)
+          self.send_to_orchestrator(values, name, device_id)
+
         except ValueError as e:
           logging.error(f"Invalid sensor reading: {str(e)}")
 
@@ -57,36 +43,17 @@ class IMUBuffer:
             if not isinstance(values[field], (int, float)):
                 raise ValueError(f"Field '{field}' must be a number")
 
-    def add_to_buffer(self, data, buffer):
-        """Add new IMU data to the buffer."""
-        if len(buffer) >= self.max_size:
-            buffer.pop(0)  # Remove oldest data
-        buffer.append(data)
-
-    def get_data(self):
-        """Get all buffered IMU data."""
-        return {
-            'accelerometer': self.accelerometer_data_buffer,
-            'gyroscope': self.gyroscope_data_buffer,
-            'gravity': self.gravity_data_buffer,
-            'total_acceleration': self.total_acceleration_data_buffer,
-            'orientation': self.orientation_data_buffer
-        }
-    
-    def get_current_buffer_size(self):
-        """Get the total size of all buffers."""
-        return {
-            'accelerometer': len(self.accelerometer_data_buffer),
-            'gyroscope': len(self.gyroscope_data_buffer),
-            'gravity': len(self.gravity_data_buffer),
-            'total_acceleration': len(self.total_acceleration_data_buffer),
-            'orientation': len(self.orientation_data_buffer)
-        }
-
-    def clear(self):
-        """Clear the buffer."""
-        self.accelerometer_data_buffer.clear()
-        self.gyroscope_data_buffer.clear()
-        self.gravity_data_buffer.clear()
-        self.total_acceleration_data_buffer.clear()
-        self.orientation_data_buffer.clear()
+    def send_to_orchestrator(self, data, sensor_type, device_id):
+        """Send data to the orchestrator service."""
+        try:
+            response = self.orchestrator_client.send_imu_data(
+                device_id=device_id,
+                timestamp=int(datetime.now().timestamp()),
+                data={
+                    'sensor_type': sensor_type,
+                    'values': data
+                }
+            )
+            logging.info(f"Data sent to orchestrator: {response}")
+        except Exception as e:
+            logging.error(f"Failed to send data to orchestrator: {str(e)}")

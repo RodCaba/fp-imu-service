@@ -8,6 +8,7 @@ from src.imu_buffer import IMUBuffer
 from src.imu_message_handler import IMUMessageHandler
 from fp_mqtt_broker import BrokerFactory
 from fp_mqtt_broker import MQTTBroker
+from fp_orchestrator_utils import OrchestratorClient
 
 # Configure logging
 logging.basicConfig(
@@ -34,8 +35,12 @@ def status_update_thread(mqtt_broker: MQTTBroker):
 
 def main():
     """Main service function"""
-    imu_buffer = IMUBuffer(config)
-    message_handlers = [IMUMessageHandler(imu_buffer, config)]
+    orchestrator_client = OrchestratorClient(
+        server_address=config['orchestrator']['server_address'],
+        timeout=config['orchestrator'].get('timeout', 30)
+    )
+    imu_buffer = IMUBuffer(config, orchestrator_client)
+    message_handlers = [IMUMessageHandler(imu_buffer, config, orchestrator_client)]
     broker = BrokerFactory.create_broker(config, message_handlers)
     is_connected = broker.connect()
 
