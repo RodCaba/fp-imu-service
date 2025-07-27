@@ -48,7 +48,6 @@ class IMUBuffer:
         try:
             response = self.orchestrator_client.send_imu_data(
                 device_id=device_id,
-                timestamp=int(datetime.now().timestamp()),
                 data={
                     'sensor_type': sensor_type,
                     'values': data
