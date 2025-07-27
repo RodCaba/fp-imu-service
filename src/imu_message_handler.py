@@ -11,13 +11,10 @@ class IMUMessageHandler(MessageHandler):
     """
     IMU message handler for processing incoming IMU data messages.
     """
-    def __init__(self, imu_buffer: IMUBuffer, config: dict):
+    def __init__(self, imu_buffer: IMUBuffer, config: dict, orchestrator_client: OrchestratorClient):
         self.imu_buffer = imu_buffer
         self.config = config
-        self.orchestrator_client = OrchestratorClient(
-            server_address=config['orchestrator']['server_address'],
-            timeout=config['orchestrator'].get('timeout', 30)
-        )
+        self.orchestrator_client = orchestrator_client
 
         # Wait for orchestrator service to be healthy, for a maximum of 10 retries
         retries = 10
@@ -72,13 +69,14 @@ class IMUMessageHandler(MessageHandler):
             for sensor_data in payload:
                 if 'name' not in sensor_data or 'values' not in sensor_data:
                     raise ValueError("Each sensor data must contain 'name' and 'values' keys")
+                logging.info(f"Received sensor data: {sensor_data}")
 
                 sensor_reading = {
                     'sensor_name': sensor_data['name'],
                     'payload': sensor_data['values'],
+                    'device_id': data.get('device_id', 'unknown'),
                 }
                 # Process each sensor reading
-                logging.info(f"Processing sensor reading: {sensor_reading}")
                 self.imu_buffer.process_sensor_reading(sensor_reading)
 
         except Exception as e:
