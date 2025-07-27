@@ -50,7 +50,9 @@ class IMUBuffer:
                 device_id=device_id,
                 imu_data={
                     'sensor_type': sensor_type,
-                    'values': data
+                    'values': {
+                        'sensor_data': data,
+                    }
                 }
             )
             logging.info(f"Data sent to orchestrator: {response}")
