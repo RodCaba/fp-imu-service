@@ -69,7 +69,6 @@ class IMUMessageHandler(MessageHandler):
             for sensor_data in payload:
                 if 'name' not in sensor_data or 'values' not in sensor_data:
                     raise ValueError("Each sensor data must contain 'name' and 'values' keys")
-                logging.info(f"Received sensor data: {sensor_data}")
 
                 sensor_reading = {
                     'sensor_name': sensor_data['name'],
