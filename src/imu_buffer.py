@@ -45,13 +45,12 @@ class IMUBuffer:
     def send_to_orchestrator(self, data, sensor_type, device_id):
         """Send data to the orchestrator service."""
         try:
-            response = self.orchestrator_client.send_imu_data(
+            self.orchestrator_client.send_imu_data(
                 device_id=device_id,
                 imu_data={
                     'sensor_type': sensor_type,
                     'values': data,
                 }
             )
-            logging.info(f"Data sent to orchestrator: {response}")
         except Exception as e:
             logging.error(f"Failed to send data to orchestrator: {str(e)}")
